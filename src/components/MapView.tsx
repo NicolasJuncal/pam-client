@@ -4,10 +4,20 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from 'react';
-import mapboxgl, { Map } from 'mapbox-gl';
+import mapboxgl, { Map, type CustomLayerInterface } from 'mapbox-gl';
 import type { GeoJSONSource, LngLatLike } from 'mapbox-gl';
 import type { FeatureCollection, LineString } from 'geojson';
 import { fetchRouteFeatureCollection } from '../engine/routing';
+import {
+  AmbientLight,
+  DirectionalLight,
+  Matrix4,
+  PerspectiveCamera,
+  Scene,
+  Vector3,
+  WebGLRenderer,
+} from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export interface MapViewProps {
   center: [number, number];
@@ -26,6 +36,10 @@ export interface MapViewHandle {
 
 const CARRINGTON_CENTER: [number, number] = [151.2067, -33.86545];
 const OPERA_CENTER: [number, number] = [151.2153, -33.8568];
+const HERO_ORIGIN: [number, number, number] = [151.21535, -33.85705, 0];
+const HERO_MODEL_URL =
+  'https://docs.mapbox.com/mapbox-gl-js/assets/34M_17/34M_17.gltf';
+const HERO_LAYER_ID = 'operaBox-hero-model';
 
 const RANDOM_OFFSET = 0.001;
 const RANDOM_BUILDING_SIZE = 0.00015;
@@ -106,10 +120,153 @@ const INITIAL_BUILDINGS = [
       ],
     },
   },
+  {
+    id: 'carrington-4',
+    color: '#F97316',
+    fc: {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { height: 55, base: 0 },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [151.20635, -33.86525],
+                [151.20655, -33.86525],
+                [151.20655, -33.86502],
+                [151.20635, -33.86502],
+                [151.20635, -33.86525],
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  },
+  {
+    id: 'carrington-5',
+    color: '#0EA5E9',
+    fc: {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { height: 65, base: 0 },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [151.20695, -33.86505],
+                [151.2072, -33.86505],
+                [151.2072, -33.86488],
+                [151.20695, -33.86488],
+                [151.20695, -33.86505],
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  },
+  {
+    id: 'carrington-6',
+    color: '#14B8A6',
+    fc: {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { height: 70, base: 0 },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [151.20625, -33.86572],
+                [151.20645, -33.86572],
+                [151.20645, -33.86555],
+                [151.20625, -33.86555],
+                [151.20625, -33.86572],
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  },
 ] as const;
 
 const FLOOR_COUNT = 4;
 const FLOOR_HEIGHT = 20;
+
+const OPERA_BOX_LAYERS = [
+  {
+    id: 'operaBox-sail-1',
+    color: '#F97316',
+    height: 30,
+    base: 0,
+    coordinates: [
+      [OPERA_CENTER[0] - 0.00025, OPERA_CENTER[1] - 0.00025],
+      [OPERA_CENTER[0] + 0.0001, OPERA_CENTER[1] - 0.00005],
+      [OPERA_CENTER[0] - 0.00015, OPERA_CENTER[1] + 0.00018],
+      [OPERA_CENTER[0] - 0.00035, OPERA_CENTER[1] + 0.00005],
+      [OPERA_CENTER[0] - 0.00025, OPERA_CENTER[1] - 0.00025],
+    ],
+  },
+  {
+    id: 'operaBox-sail-2',
+    color: '#FB923C',
+    height: 40,
+    base: 5,
+    coordinates: [
+      [OPERA_CENTER[0] - 0.00005, OPERA_CENTER[1] - 0.00028],
+      [OPERA_CENTER[0] + 0.00028, OPERA_CENTER[1] - 0.00008],
+      [OPERA_CENTER[0] + 0.00005, OPERA_CENTER[1] + 0.00022],
+      [OPERA_CENTER[0] - 0.00022, OPERA_CENTER[1] + 0.00002],
+      [OPERA_CENTER[0] - 0.00005, OPERA_CENTER[1] - 0.00028],
+    ],
+  },
+  {
+    id: 'operaBox-sail-3',
+    color: '#FDBA74',
+    height: 55,
+    base: 12,
+    coordinates: [
+      [OPERA_CENTER[0] + 0.00015, OPERA_CENTER[1] - 0.0002],
+      [OPERA_CENTER[0] + 0.00038, OPERA_CENTER[1] - 0.00002],
+      [OPERA_CENTER[0] + 0.00018, OPERA_CENTER[1] + 0.00025],
+      [OPERA_CENTER[0] - 0.00004, OPERA_CENTER[1] + 0.00007],
+      [OPERA_CENTER[0] + 0.00015, OPERA_CENTER[1] - 0.0002],
+    ],
+  },
+] as const;
+
+const OPERA_BOX_PODIUM = {
+  id: 'operaBox-podium',
+  color: '#9CA3AF',
+  fc: {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: { height: 8, base: 0 },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [OPERA_CENTER[0] - 0.00032, OPERA_CENTER[1] - 0.00032],
+              [OPERA_CENTER[0] + 0.00032, OPERA_CENTER[1] - 0.00012],
+              [OPERA_CENTER[0] + 0.00028, OPERA_CENTER[1] + 0.00032],
+              [OPERA_CENTER[0] - 0.00036, OPERA_CENTER[1] + 0.00014],
+              [OPERA_CENTER[0] - 0.00032, OPERA_CENTER[1] - 0.00032],
+            ],
+          ],
+        },
+      },
+    ],
+  },
+} as const;
 
 const ROUTE_SOURCE_ID = 'carrington-opera-route-source';
 const ROUTE_LAYER_ID = 'carrington-opera-route-layer';
@@ -140,11 +297,15 @@ const MapViewInner: React.ForwardRefRenderFunction<
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
-  const buildingCountRef = useRef(3); // starting after 3 base buildings
+  const buildingCountRef = useRef(INITIAL_BUILDINGS.length);
   const startMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const endMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const routePointsRef = useRef<{ start?: [number, number]; end?: [number, number] }>({});
   const didCancelRef = useRef(false);
+  const buildingRegistryRef = useRef(
+    INITIAL_BUILDINGS.map((b) => ({ id: b.id, color: b.color, fc: b.fc })),
+  );
+  const heroLayerAddedRef = useRef(false);
 
   const clearMarker = (markerRef: React.MutableRefObject<mapboxgl.Marker | null>) => {
     markerRef.current?.remove();
@@ -214,6 +375,85 @@ const MapViewInner: React.ForwardRefRenderFunction<
     }
   };
 
+  const createHeroLayer = (mapInstance: Map): CustomLayerInterface => {
+    const modelAsMercatorCoordinate = mapboxgl.MercatorCoordinate.fromLngLat(
+      [HERO_ORIGIN[0], HERO_ORIGIN[1]],
+      HERO_ORIGIN[2],
+    );
+    const modelScale = modelAsMercatorCoordinate.meterInMercatorCoordinateUnits();
+
+    const modelTransform = {
+      translateX: modelAsMercatorCoordinate.x,
+      translateY: modelAsMercatorCoordinate.y,
+      translateZ: modelAsMercatorCoordinate.z,
+      scale: modelScale * 10,
+    };
+
+    let scene: Scene | null = null;
+    let camera: PerspectiveCamera | null = null;
+    let renderer: WebGLRenderer | null = null;
+    let modelLoaded = false;
+
+    return {
+      id: HERO_LAYER_ID,
+      type: 'custom',
+      renderingMode: '3d',
+      onAdd(map, gl) {
+        scene = new Scene();
+        camera = new PerspectiveCamera();
+
+        scene.add(new AmbientLight(0xffffff, 0.5));
+        const dirLight = new DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(0, 6, 4);
+        scene.add(dirLight);
+
+        const loader = new GLTFLoader();
+        loader.load(
+          HERO_MODEL_URL,
+          (gltf) => {
+            const model = gltf.scene;
+            model.rotation.x = Math.PI / 2;
+            model.scale.set(modelTransform.scale, modelTransform.scale, modelTransform.scale);
+            model.position.set(0, 0, 0);
+            scene?.add(model);
+            modelLoaded = true;
+          },
+          undefined,
+          (error) => {
+            console.error('MapView: failed to load hero model', error);
+          },
+        );
+
+        renderer = new WebGLRenderer({
+          canvas: map.getCanvas(),
+          context: gl,
+          antialias: true,
+        });
+        renderer.autoClear = false;
+      },
+      render(gl, matrix) {
+        if (!renderer || !scene || !camera || !modelLoaded) return;
+
+        const rotation = new Matrix4().makeRotationZ(Math.PI);
+        const translation = new Matrix4().makeTranslation(
+          modelTransform.translateX,
+          modelTransform.translateY,
+          modelTransform.translateZ,
+        );
+        const scaling = new Matrix4().scale(
+          new Vector3(modelTransform.scale, -modelTransform.scale, modelTransform.scale),
+        );
+
+        const m = new Matrix4().fromArray(matrix);
+        camera.projectionMatrix = m.multiply(translation).multiply(rotation).multiply(scaling);
+
+        renderer.resetState();
+        renderer.render(scene, camera);
+        mapInstance.triggerRepaint();
+      },
+    };
+  };
+
   const loadRoute = async (from: [number, number], to: [number, number]) => {
     try {
       const { featureCollection } = await fetchRouteFeatureCollection(
@@ -279,6 +519,12 @@ const MapViewInner: React.ForwardRefRenderFunction<
 
       const colors = ['#6366F1', '#22C55E', '#EAB308', '#F97316', '#EC4899'];
       const color = colors[Math.floor(Math.random() * colors.length)];
+
+      buildingRegistryRef.current = [
+        ...buildingRegistryRef.current,
+        { id, color, fc: featureCollection },
+      ];
+      console.log('MapView: current buildings', buildingRegistryRef.current);
 
       const sourceId = `${id}-source`;
       const layerId = `${id}-layer`;
@@ -364,6 +610,14 @@ const MapViewInner: React.ForwardRefRenderFunction<
     map.addControl(
       new mapboxgl.NavigationControl({ visualizePitch: true }),
       'top-left',
+    );
+    map.addControl(
+      new mapboxgl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        trackUserLocation: true,
+        showUserHeading: true,
+      }),
+      'top-right',
     );
 
     const addBuilding = (id: string, featureCollection: any, color: string) => {
@@ -480,33 +734,32 @@ const MapViewInner: React.ForwardRefRenderFunction<
         }
       }
 
-      // Opera House block
-      const operaOffsetLng = 0.00025;
-      const operaOffsetLat = 0.0002;
+      // OperaBox podium
+      addBuilding(OPERA_BOX_PODIUM.id, OPERA_BOX_PODIUM.fc, OPERA_BOX_PODIUM.color);
 
-      const operaBuilding = {
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: 'Feature',
-            properties: { height: 50, base: 0 },
-            geometry: {
-              type: 'Polygon',
-              coordinates: [
-                [
-                  [OPERA_CENTER[0] - operaOffsetLng, OPERA_CENTER[1] - operaOffsetLat],
-                  [OPERA_CENTER[0] + operaOffsetLng, OPERA_CENTER[1] - operaOffsetLat],
-                  [OPERA_CENTER[0] + operaOffsetLng, OPERA_CENTER[1] + operaOffsetLat],
-                  [OPERA_CENTER[0] - operaOffsetLng, OPERA_CENTER[1] + operaOffsetLat],
-                  [OPERA_CENTER[0] - operaOffsetLng, OPERA_CENTER[1] - operaOffsetLat],
-                ],
-              ],
+      // OperaBox layered sails/extrusions
+      OPERA_BOX_LAYERS.forEach((layer) => {
+        const sailFc = {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: { height: layer.height, base: layer.base },
+              geometry: {
+                type: 'Polygon',
+                coordinates: [layer.coordinates],
+              },
             },
-          },
-        ],
-      };
+          ],
+        };
 
-      addBuilding('opera-house', operaBuilding, '#F97316');
+        addBuilding(layer.id, sailFc, layer.color);
+      });
+
+      if (!heroLayerAddedRef.current && !map.getLayer(HERO_LAYER_ID)) {
+        map.addLayer(createHeroLayer(map));
+        heroLayerAddedRef.current = true;
+      }
 
       // Fetch a real route between Carrington cluster and Opera House
       loadRoute(CARRINGTON_CENTER, OPERA_CENTER);
